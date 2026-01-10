@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Reducer</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>PDF Reducer</h1>
+            <span class="badge">Local</span>
+        </header>
+
+        <main>
+            <!-- Drop Zone -->
+            <div class="drop-zone" id="dropZone">
+                <div class="drop-zone-content">
+                    <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="12" y1="18" x2="12" y2="12"></line>
+                        <line x1="9" y1="15" x2="12" y2="12"></line>
+                        <line x1="15" y1="15" x2="12" y2="12"></line>
+                    </svg>
+                    <p>Drop PDF files here</p>
+                    <p class="drop-hint">or click to browse</p>
+                </div>
+                <input type="file" id="fileInput" accept=".pdf" multiple hidden>
+            </div>
+
+            <!-- Options Panel -->
+            <section class="options-panel">
+                <div class="options-header">
+                    <h2>Options</h2>
+                    <button class="btn btn-secondary btn-small" id="resetOptions">Reset to Default</button>
+                </div>
+                <div class="options-grid">
+                    <div class="option-group">
+                        <label for="dpi">Image DPI</label>
+                        <div class="range-container">
+                            <input type="range" id="dpi" min="50" max="300" value="150">
+                            <span class="range-value" id="dpiValue">150</span>
+                        </div>
+                    </div>
+
+                    <div class="option-group">
+                        <label for="quality">JPEG Quality</label>
+                        <div class="range-container">
+                            <input type="range" id="quality" min="10" max="100" value="80">
+                            <span class="range-value" id="qualityValue">80</span>
+                        </div>
+                    </div>
+
+                    <div class="option-group checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="aggressive">
+                            <span class="checkmark"></span>
+                            Aggressive mode
+                        </label>
+                        <p class="option-hint">Maximum compression, may affect quality</p>
+                    </div>
+
+                    <div class="option-group checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="grayscale">
+                            <span class="checkmark"></span>
+                            Convert to grayscale
+                        </label>
+                        <p class="option-hint">Convert all images to black & white</p>
+                    </div>
+
+                    <div class="option-group checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="removeImages">
+                            <span class="checkmark"></span>
+                            Remove all images
+                        </label>
+                        <p class="option-hint">Strip all images from the PDF</p>
+                    </div>
+
+                    <div class="option-group checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="stripMetadata">
+                            <span class="checkmark"></span>
+                            Strip metadata
+                        </label>
+                        <p class="option-hint">Remove document metadata</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Queue -->
+            <section class="queue-section">
+                <div class="queue-header">
+                    <h2>Queue</h2>
+                    <div class="queue-header-buttons">
+                        <button class="btn btn-primary" id="processAll" style="display: none;">Process</button>
+                        <button class="btn btn-primary" id="downloadAll" style="display: none;">Download All</button>
+                        <button class="btn btn-secondary" id="clearCompleted">Clear Completed</button>
+                    </div>
+                </div>
+                <div class="queue-list" id="queueList">
+                    <div class="queue-empty">No files in queue</div>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>PDF Reducer - Local processing, files never leave your computer</p>
+        </footer>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
