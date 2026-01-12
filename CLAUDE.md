@@ -52,9 +52,12 @@ pdfreducer/
 3. PDF is saved with compression options (linearize, object streams, optional aggressive mode)
 
 **Web Flow:**
-1. Files uploaded via `/api/upload` are added to `ProcessingQueue`
-2. Background worker processes jobs asynchronously
-3. WebSocket broadcasts real-time progress updates to connected clients
+1. Files uploaded via `/api/upload` are added to `ProcessingQueue` in pending state
+2. User adjusts settings and clicks "Process" button
+3. `POST /api/process` triggers processing of all pending jobs
+4. Background worker processes jobs asynchronously
+5. WebSocket broadcasts real-time progress updates to connected clients
+6. Completed files can be downloaded individually or as ZIP via `/api/download-all`
 
 ## Key Dependencies
 
@@ -62,6 +65,20 @@ pdfreducer/
 - **Pillow**: Image optimization (resize, format conversion, quality adjustment)
 - **FastAPI/uvicorn**: Web interface and API
 - **websockets**: Real-time progress updates
+
+## Web API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/upload` | POST | Upload PDF file (returns job in pending state) |
+| `/api/process` | POST | Start processing all pending jobs |
+| `/api/jobs` | GET | List all jobs |
+| `/api/jobs/{id}` | GET | Get job status |
+| `/api/jobs/{id}` | DELETE | Remove a job |
+| `/api/jobs/clear-completed` | POST | Clear completed/failed jobs |
+| `/api/download/{id}` | GET | Download processed PDF |
+| `/api/download-all` | GET | Download all completed PDFs as ZIP |
+| `/ws` | WebSocket | Real-time job updates |
 
 ## CLI Options Reference
 
