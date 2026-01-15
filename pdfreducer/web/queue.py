@@ -10,6 +10,7 @@ from typing import Callable, Dict, List, Optional
 
 from pdfreducer.core.options import ReductionOptions
 from pdfreducer.core.reducer import PDFReducer
+from pdfreducer.core.text_extractor import extract_text
 
 
 class JobStatus(str, Enum):
@@ -23,13 +24,14 @@ class JobStatus(str, Enum):
 
 @dataclass
 class Job:
-    """Represents a PDF reduction job."""
+    """Represents a PDF processing job."""
 
     id: str
     filename: str
     input_path: Path
     output_path: Path
     options: ReductionOptions
+    mode: str = "reduce"  # 'reduce' or 'extract'
     status: JobStatus = JobStatus.PENDING
     progress: float = 0.0
     message: str = "Waiting..."
@@ -44,6 +46,7 @@ class Job:
         return {
             "id": self.id,
             "filename": self.filename,
+            "mode": self.mode,
             "status": self.status.value,
             "progress": self.progress,
             "message": self.message,
@@ -91,6 +94,7 @@ class ProcessingQueue:
         input_path: Path,
         output_path: Path,
         options: ReductionOptions,
+        mode: str = "reduce",
         auto_process: bool = False,
     ) -> Job:
         """Add a new job to the queue."""
@@ -102,6 +106,7 @@ class ProcessingQueue:
             input_path=input_path,
             output_path=output_path,
             options=options,
+            mode=mode,
             original_size=input_path.stat().st_size,
         )
 
@@ -224,19 +229,42 @@ class ProcessingQueue:
         """Process a single job."""
         loop = asyncio.get_event_loop()
 
+        if job.mode == "extract":
+            await self._process_extract(job, loop)
+        else:
+            await self._process_reduce(job, loop)
+
+    async def _process_reduce(self, job: Job, loop):
+        """Process a PDF reduction job."""
+
         def progress_callback(pct: float, msg: str):
             job.progress = pct
             job.message = msg
-            # Schedule notification in the event loop
             asyncio.run_coroutine_threadsafe(self._notify_update(job), loop)
 
         reducer = PDFReducer(job.options)
 
-        # Run the reduction in a thread pool to avoid blocking
         await loop.run_in_executor(
             None,
             lambda: reducer.reduce(job.input_path, job.output_path, progress_callback),
         )
+
+    async def _process_extract(self, job: Job, loop):
+        """Process a text extraction job."""
+        job.message = "Extracting text..."
+        job.progress = 10.0
+        await self._notify_update(job)
+
+        def do_extract():
+            text = extract_text(job.input_path)
+            # Write to .txt file
+            job.output_path.write_text(text, encoding="utf-8")
+            return len(text)
+
+        text_length = await loop.run_in_executor(None, do_extract)
+
+        job.progress = 100.0
+        job.message = f"Extracted {text_length:,} characters"
 
 
 # Global queue instance

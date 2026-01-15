@@ -106,6 +106,7 @@ def parse_bool(value: str) -> bool:
 @app.post("/api/upload")
 async def upload_file(
     file: UploadFile = File(...),
+    mode: str = Form("reduce"),
     dpi: int = Form(150),
     quality: int = Form(80),
     grayscale: str = Form("false"),
@@ -119,7 +120,12 @@ async def upload_file(
 
     # Save uploaded file
     input_path = UPLOAD_DIR / f"{processing_queue.jobs.__len__()}_{file.filename}"
-    output_path = OUTPUT_DIR / f"{input_path.stem}_reduced.pdf"
+
+    # Set output path based on mode
+    if mode == "extract":
+        output_path = OUTPUT_DIR / f"{Path(file.filename).stem}.txt"
+    else:
+        output_path = OUTPUT_DIR / f"{input_path.stem}_reduced.pdf"
 
     content = await file.read()
     input_path.write_bytes(content)
@@ -140,6 +146,7 @@ async def upload_file(
         input_path=input_path,
         output_path=output_path,
         options=options,
+        mode=mode,
     )
 
     return {"job_id": job.id, "job": job.to_dict()}
@@ -184,7 +191,7 @@ async def start_processing():
 
 @app.get("/api/download/{job_id}")
 async def download_file(job_id: str):
-    """Download a processed PDF."""
+    """Download a processed file (PDF or text)."""
     job = await processing_queue.get_job(job_id)
     if not job:
         return {"error": "Job not found"}
@@ -192,16 +199,23 @@ async def download_file(job_id: str):
     if not job.output_path.exists():
         return {"error": "Output file not found"}
 
-    return FileResponse(
-        path=job.output_path,
-        filename=f"{Path(job.filename).stem}_reduced.pdf",
-        media_type="application/pdf",
-    )
+    if job.mode == "extract":
+        return FileResponse(
+            path=job.output_path,
+            filename=f"{Path(job.filename).stem}.txt",
+            media_type="text/plain; charset=utf-8",
+        )
+    else:
+        return FileResponse(
+            path=job.output_path,
+            filename=f"{Path(job.filename).stem}_reduced.pdf",
+            media_type="application/pdf",
+        )
 
 
 @app.get("/api/download-all")
 async def download_all():
-    """Download all completed PDFs as a ZIP file."""
+    """Download all completed files as a ZIP file."""
     jobs = await processing_queue.get_all_jobs()
     completed_jobs = [
         job for job in jobs
@@ -215,7 +229,10 @@ async def download_all():
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
         for job in completed_jobs:
-            filename = f"{Path(job.filename).stem}_reduced.pdf"
+            if job.mode == "extract":
+                filename = f"{Path(job.filename).stem}.txt"
+            else:
+                filename = f"{Path(job.filename).stem}_reduced.pdf"
             zip_file.write(job.output_path, filename)
 
     zip_buffer.seek(0)
@@ -223,7 +240,7 @@ async def download_all():
     return StreamingResponse(
         zip_buffer,
         media_type="application/zip",
-        headers={"Content-Disposition": "attachment; filename=reduced_pdfs.zip"},
+        headers={"Content-Disposition": "attachment; filename=processed_files.zip"},
     )
 
 

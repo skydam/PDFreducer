@@ -36,7 +36,14 @@
                     <h2>Options</h2>
                     <button class="btn btn-secondary btn-small" id="resetOptions">Reset to Default</button>
                 </div>
-                <div class="options-grid">
+
+                <!-- Mode Toggle -->
+                <div class="mode-toggle">
+                    <button class="mode-btn active" data-mode="reduce">Reduce Size</button>
+                    <button class="mode-btn" data-mode="extract">Extract Text</button>
+                </div>
+
+                <div class="options-grid" id="reduceOptions">
                     <div class="option-group">
                         <label for="dpi">Image DPI</label>
                         <div class="range-container">
@@ -87,6 +94,14 @@
                             Strip metadata
                         </label>
                         <p class="option-hint">Remove document metadata</p>
+                    </div>
+                </div>
+
+                <!-- Extract Text Options (hidden by default) -->
+                <div class="options-grid" id="extractOptions" style="display: none;">
+                    <div class="extract-info">
+                        <p>Extract text content from PDFs into .txt files.</p>
+                        <p class="option-hint">Useful for making documents readable by AI assistants.</p>
                     </div>
                 </div>
             </section>

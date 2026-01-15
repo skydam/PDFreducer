@@ -124,6 +124,55 @@ header h1 {
     font-size: 0.75rem;
 }
 
+/* Mode Toggle */
+.mode-toggle {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.25rem;
+    background: var(--bg-tertiary);
+    padding: 0.25rem;
+    border-radius: 8px;
+}
+
+.mode-btn {
+    flex: 1;
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.mode-btn:hover {
+    color: var(--text-primary);
+}
+
+.mode-btn.active {
+    background: var(--accent);
+    color: white;
+}
+
+/* Extract Info */
+.extract-info {
+    padding: 1rem;
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+}
+
+.extract-info p {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+.extract-info .option-hint {
+    margin-left: 0;
+    margin-top: 0.5rem;
+}
+
 .options-grid {
     display: grid;
     gap: 1.25rem;

@@ -6,6 +6,7 @@ class PDFReducerApp {
         this.ws = null;
         this.reconnectAttempts = 0;
         this.maxReconnectAttempts = 5;
+        this.mode = 'reduce'; // 'reduce' or 'extract'
 
         // Default option values
         this.defaults = {
@@ -44,6 +45,11 @@ class PDFReducerApp {
         this.grayscaleCheckbox = document.getElementById('grayscale');
         this.removeImagesCheckbox = document.getElementById('removeImages');
         this.stripMetadataCheckbox = document.getElementById('stripMetadata');
+
+        // Mode toggle
+        this.modeButtons = document.querySelectorAll('.mode-btn');
+        this.reduceOptions = document.getElementById('reduceOptions');
+        this.extractOptions = document.getElementById('extractOptions');
     }
 
     initEventListeners() {
@@ -78,6 +84,24 @@ class PDFReducerApp {
 
         // Process all button
         this.processAllBtn.addEventListener('click', () => this.processAll());
+
+        // Mode toggle buttons
+        this.modeButtons.forEach(btn => {
+            btn.addEventListener('click', () => this.setMode(btn.dataset.mode));
+        });
+    }
+
+    setMode(mode) {
+        this.mode = mode;
+
+        // Update button states
+        this.modeButtons.forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.mode === mode);
+        });
+
+        // Show/hide options
+        this.reduceOptions.style.display = mode === 'reduce' ? 'grid' : 'none';
+        this.extractOptions.style.display = mode === 'extract' ? 'grid' : 'none';
     }
 
     updateImageOptionsState() {
@@ -198,6 +222,7 @@ class PDFReducerApp {
     async uploadFile(file) {
         const formData = new FormData();
         formData.append('file', file);
+        formData.append('mode', this.mode);
         formData.append('dpi', this.dpiSlider.value);
         formData.append('quality', this.qualitySlider.value);
         // Send boolean values as strings "true" or "false"
@@ -358,10 +383,14 @@ class PDFReducerApp {
     getJobDetails(job) {
         switch (job.status) {
             case 'pending':
-                return `${this.formatSize(job.original_size)} - Waiting...`;
+                const modeLabel = job.mode === 'extract' ? 'Extract text' : 'Reduce';
+                return `${this.formatSize(job.original_size)} - ${modeLabel} - Waiting...`;
             case 'processing':
                 return job.message || 'Processing...';
             case 'completed':
+                if (job.mode === 'extract') {
+                    return `${this.formatSize(job.original_size)} → ${this.formatSize(job.reduced_size)} text extracted`;
+                }
                 const reduction = ((job.original_size - job.reduced_size) / job.original_size * 100).toFixed(0);
                 const isPositive = job.reduced_size < job.original_size;
                 return `${this.formatSize(job.original_size)} → ${this.formatSize(job.reduced_size)} <span class="queue-item-size ${isPositive ? '' : 'negative'}">(${isPositive ? '-' : '+'}${Math.abs(reduction)}%)</span>`;
