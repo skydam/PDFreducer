@@ -147,6 +147,11 @@ def main(args: List[str] | None = None):
         help="Web server port (default: 8000)",
     )
     parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Host to bind to (default: 127.0.0.1)",
+    )
+    parser.add_argument(
         "--no-browser",
         action="store_true",
         help="Don't open browser automatically",
@@ -171,7 +176,7 @@ def main(args: List[str] | None = None):
         if not parsed_args.no_browser:
             webbrowser.open(url)
 
-        run_server(port=parsed_args.port)
+        run_server(host=parsed_args.host, port=parsed_args.port)
         return 0
 
     # Validate inputs
