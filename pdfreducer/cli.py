@@ -157,6 +157,19 @@ def main(args: List[str] | None = None):
         help="Don't open browser automatically",
     )
 
+    # Text extraction
+    parser.add_argument(
+        "--extract-text",
+        type=Path,
+        metavar="FOLDER",
+        help="Extract text from all PDFs in folder, move originals to _originals/",
+    )
+    parser.add_argument(
+        "--keep",
+        action="store_true",
+        help="Keep original PDFs in place (don't move to _originals/)",
+    )
+
     # Other options
     parser.add_argument(
         "-q", "--quiet",
@@ -165,6 +178,55 @@ def main(args: List[str] | None = None):
     )
 
     parsed_args = parser.parse_args(args)
+
+    # Text extraction mode
+    if parsed_args.extract_text:
+        from pdfreducer.core.text_extractor import extract_text
+        import shutil
+
+        folder = parsed_args.extract_text
+        if not folder.is_dir():
+            print(f"Error: {folder} is not a directory")
+            return 1
+
+        pdf_files = list(folder.glob("*.pdf"))
+        if not pdf_files:
+            print(f"No PDF files found in {folder}")
+            return 1
+
+        verbose = not parsed_args.quiet
+        originals_dir = folder / "_originals"
+
+        if not parsed_args.keep:
+            originals_dir.mkdir(exist_ok=True)
+
+        success_count = 0
+        for pdf_path in pdf_files:
+            if verbose:
+                print(f"Extracting: {pdf_path.name}")
+
+            try:
+                text = extract_text(pdf_path)
+                txt_path = folder / f"{pdf_path.stem}.txt"
+                txt_path.write_text(text, encoding="utf-8")
+
+                if not parsed_args.keep:
+                    shutil.move(str(pdf_path), str(originals_dir / pdf_path.name))
+
+                success_count += 1
+                if verbose:
+                    print(f"  → {txt_path.name} ({len(text):,} chars)")
+
+            except Exception as e:
+                if verbose:
+                    print(f"  Error: {e}")
+
+        if verbose:
+            print(f"\nExtracted {success_count}/{len(pdf_files)} files")
+            if not parsed_args.keep:
+                print(f"Originals moved to: {originals_dir}")
+
+        return 0 if success_count > 0 else 1
 
     # Start web server if requested
     if parsed_args.serve:
