@@ -124,3 +124,7 @@ The project includes Docker support for NAS deployment. See `NAS-Docker-Deployme
 docker build -t pdfreducer .
 docker run -d -p 5052:8000 --name pdfreducer pdfreducer
 ```
+
+## User Preferences
+
+- **Deployment zips**: Always save `pdfreducer-nas-deploy.zip` to `~/Desktop/`, not in the project directory
