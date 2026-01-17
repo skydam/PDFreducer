@@ -115,15 +115,23 @@ pdfreducer/
 | `--host` | 127.0.0.1 | Host to bind to |
 | `--port` | 8000 | Port to listen on |
 
-## Docker Deployment
+## Docker Deployment (NAS)
 
-The project includes Docker support for NAS deployment. See `NAS-Docker-Deployment-Guide.md` for details.
+The service runs on Synology NAS at `192.168.178.58:5052`.
 
-```bash
-# Build and run
-docker build -t pdfreducer .
-docker run -d -p 5052:8000 --name pdfreducer pdfreducer
-```
+### Deploying Updates
+
+1. Rebuild the deployment zip (saved to Desktop):
+   ```bash
+   zip -r ~/Desktop/pdfreducer-nas-deploy.zip Dockerfile .dockerignore docker-compose.yml pdfreducer pyproject.toml -x "*.pyc" -x "__pycache__/*" -x "*.egg-info/*"
+   ```
+
+2. Upload `~/Desktop/pdfreducer-nas-deploy.zip` to NAS and extract
+
+3. On NAS, rebuild and restart with one command:
+   ```bash
+   docker-compose up --build -d
+   ```
 
 ## User Preferences
 
