@@ -18,7 +18,7 @@ import uuid
 DEFAULT_SERVER = "192.168.178.58:5052"
 
 
-def create_multipart_form(pdf_path: Path, mode: str = "extract") -> tuple[bytes, str]:
+def create_multipart_form(pdf_path: Path, mode: str = "extract", extract_csv: bool = False) -> tuple[bytes, str]:
     """Create multipart form data for file upload."""
     boundary = f"----WebKitFormBoundary{uuid.uuid4().hex[:16]}"
 
@@ -29,6 +29,12 @@ def create_multipart_form(pdf_path: Path, mode: str = "extract") -> tuple[bytes,
     body.append(b'Content-Disposition: form-data; name="mode"')
     body.append(b"")
     body.append(mode.encode())
+
+    # Add extract_csv field
+    body.append(f"--{boundary}".encode())
+    body.append(b'Content-Disposition: form-data; name="extract_csv"')
+    body.append(b"")
+    body.append(b"true" if extract_csv else b"false")
 
     # Add file field
     body.append(f"--{boundary}".encode())
@@ -43,11 +49,11 @@ def create_multipart_form(pdf_path: Path, mode: str = "extract") -> tuple[bytes,
     return b"\r\n".join(body), boundary
 
 
-def upload_file(server: str, pdf_path: Path, mode: str = "extract") -> dict:
+def upload_file(server: str, pdf_path: Path, mode: str = "extract", extract_csv: bool = False) -> dict:
     """Upload a PDF file to the server."""
     url = f"http://{server}/api/upload"
 
-    body, boundary = create_multipart_form(pdf_path, mode)
+    body, boundary = create_multipart_form(pdf_path, mode, extract_csv)
 
     req = urllib.request.Request(url, data=body)
     req.add_header("Content-Type", f"multipart/form-data; boundary={boundary}")
@@ -81,6 +87,27 @@ def download_file(server: str, job_id: str, output_path: Path) -> bool:
     try:
         with urllib.request.urlopen(url, timeout=120) as response:
             output_path.write_bytes(response.read())
+            return True
+    except Exception:
+        return False
+
+
+def download_csv(server: str, job_id: str, output_dir: Path, stem: str) -> bool:
+    """Download CSV tables as a ZIP and extract them."""
+    url = f"http://{server}/api/download-csv/{job_id}"
+
+    try:
+        with urllib.request.urlopen(url, timeout=120) as response:
+            # Create tables directory
+            tables_dir = output_dir / f"{stem}_tables"
+            tables_dir.mkdir(exist_ok=True)
+
+            # Extract ZIP contents
+            import zipfile
+            import io
+            zip_data = io.BytesIO(response.read())
+            with zipfile.ZipFile(zip_data, 'r') as zf:
+                zf.extractall(tables_dir)
             return True
     except Exception:
         return False
@@ -153,6 +180,11 @@ Examples:
         help="Move original PDFs to _originals/ subdirectory after extraction",
     )
     parser.add_argument(
+        "--csv",
+        action="store_true",
+        help="Also extract tables as separate CSV files",
+    )
+    parser.add_argument(
         "--timeout",
         type=int,
         default=300,
@@ -176,7 +208,7 @@ Examples:
 
     for pdf_path in pdf_files:
         try:
-            result = upload_file(args.server, pdf_path)
+            result = upload_file(args.server, pdf_path, extract_csv=args.csv)
             if "error" in result:
                 print(f"  ✗ {pdf_path.name}: {result['error']}")
             else:
@@ -210,6 +242,13 @@ Examples:
             if download_file(args.server, job_id, output_path):
                 print(f"  ↓ {output_path.name}")
                 downloaded.append((job_id, original_path, output_path))
+
+                # Download CSV tables if requested and available
+                if args.csv and job.get("has_csv"):
+                    if download_csv(args.server, job_id, original_path.parent, original_path.stem):
+                        print(f"  ↓ {original_path.stem}_tables/")
+                    else:
+                        print(f"  ✗ Failed to download CSV tables for {original_path.stem}")
             else:
                 print(f"  ✗ Failed to download {original_path.stem}.txt")
 

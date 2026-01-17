@@ -169,6 +169,11 @@ def main(args: List[str] | None = None):
         action="store_true",
         help="Keep original PDFs in place (don't move to _originals/)",
     )
+    parser.add_argument(
+        "--csv",
+        action="store_true",
+        help="Also extract tables as separate CSV files",
+    )
 
     # Other options
     parser.add_argument(
@@ -206,9 +211,19 @@ def main(args: List[str] | None = None):
                 print(f"Extracting: {pdf_path.name}")
 
             try:
-                text = extract_text(pdf_path)
+                text, csv_tables = extract_text(pdf_path, extract_csv=parsed_args.csv)
                 txt_path = folder / f"{pdf_path.stem}.txt"
                 txt_path.write_text(text, encoding="utf-8")
+
+                # Write CSV files if requested
+                if parsed_args.csv and csv_tables:
+                    csv_dir = folder / f"{pdf_path.stem}_tables"
+                    csv_dir.mkdir(exist_ok=True)
+                    for page_num, table_num, csv_data in csv_tables:
+                        csv_path = csv_dir / f"page{page_num}_table{table_num}.csv"
+                        csv_path.write_text(csv_data, encoding="utf-8")
+                    if verbose:
+                        print(f"  → {len(csv_tables)} tables saved to {csv_dir.name}/")
 
                 if not parsed_args.keep:
                     shutil.move(str(pdf_path), str(originals_dir / pdf_path.name))

@@ -32,6 +32,8 @@ class Job:
     output_path: Path
     options: ReductionOptions
     mode: str = "reduce"  # 'reduce' or 'extract'
+    extract_csv: bool = False  # Also extract tables as CSV
+    csv_dir: Optional[Path] = None  # Directory containing CSV files
     status: JobStatus = JobStatus.PENDING
     progress: float = 0.0
     message: str = "Waiting..."
@@ -47,6 +49,8 @@ class Job:
             "id": self.id,
             "filename": self.filename,
             "mode": self.mode,
+            "extract_csv": self.extract_csv,
+            "has_csv": self.csv_dir is not None and self.csv_dir.exists(),
             "status": self.status.value,
             "progress": self.progress,
             "message": self.message,
@@ -95,6 +99,7 @@ class ProcessingQueue:
         output_path: Path,
         options: ReductionOptions,
         mode: str = "reduce",
+        extract_csv: bool = False,
         auto_process: bool = False,
     ) -> Job:
         """Add a new job to the queue."""
@@ -107,6 +112,7 @@ class ProcessingQueue:
             output_path=output_path,
             options=options,
             mode=mode,
+            extract_csv=extract_csv,
             original_size=input_path.stat().st_size,
         )
 
@@ -256,15 +262,28 @@ class ProcessingQueue:
         await self._notify_update(job)
 
         def do_extract():
-            text = extract_text(job.input_path)
+            text, csv_tables = extract_text(job.input_path, extract_csv=job.extract_csv)
             # Write to .txt file
             job.output_path.write_text(text, encoding="utf-8")
-            return len(text)
 
-        text_length = await loop.run_in_executor(None, do_extract)
+            # Write CSV files if requested
+            if job.extract_csv and csv_tables:
+                csv_dir = job.output_path.parent / f"{job.output_path.stem}_tables"
+                csv_dir.mkdir(exist_ok=True)
+                for page_num, table_num, csv_data in csv_tables:
+                    csv_path = csv_dir / f"page{page_num}_table{table_num}.csv"
+                    csv_path.write_text(csv_data, encoding="utf-8")
+                job.csv_dir = csv_dir
+
+            return len(text), len(csv_tables) if csv_tables else 0
+
+        text_length, table_count = await loop.run_in_executor(None, do_extract)
 
         job.progress = 100.0
-        job.message = f"Extracted {text_length:,} characters"
+        if table_count > 0:
+            job.message = f"Extracted {text_length:,} chars, {table_count} tables"
+        else:
+            job.message = f"Extracted {text_length:,} characters"
 
 
 # Global queue instance

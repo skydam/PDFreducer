@@ -107,6 +107,7 @@ def parse_bool(value: str) -> bool:
 async def upload_file(
     file: UploadFile = File(...),
     mode: str = Form("reduce"),
+    extract_csv: str = Form("false"),
     dpi: int = Form(150),
     quality: int = Form(80),
     grayscale: str = Form("false"),
@@ -147,6 +148,7 @@ async def upload_file(
         output_path=output_path,
         options=options,
         mode=mode,
+        extract_csv=parse_bool(extract_csv),
     )
 
     return {"job_id": job.id, "job": job.to_dict()}
@@ -211,6 +213,31 @@ async def download_file(job_id: str):
             filename=f"{Path(job.filename).stem}_reduced.pdf",
             media_type="application/pdf",
         )
+
+
+@app.get("/api/download-csv/{job_id}")
+async def download_csv(job_id: str):
+    """Download CSV tables as a ZIP file."""
+    job = await processing_queue.get_job(job_id)
+    if not job:
+        return {"error": "Job not found"}
+
+    if not job.csv_dir or not job.csv_dir.exists():
+        return {"error": "No CSV files available"}
+
+    # Create ZIP of CSV files
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        for csv_file in job.csv_dir.glob("*.csv"):
+            zip_file.write(csv_file, csv_file.name)
+
+    zip_buffer.seek(0)
+
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename={Path(job.filename).stem}_tables.zip"},
+    )
 
 
 @app.get("/api/download-all")
