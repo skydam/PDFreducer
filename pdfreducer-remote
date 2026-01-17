@@ -53,29 +53,25 @@ def upload_file(server: str, pdf_path: Path, mode: str = "extract") -> dict:
     req.add_header("Content-Type", f"multipart/form-data; boundary={boundary}")
 
     try:
-        with urllib.request.urlopen(req, timeout=60) as response:
+        with urllib.request.urlopen(req, timeout=300) as response:
             return json.loads(response.read().decode())
     except urllib.error.HTTPError as e:
         return {"error": f"HTTP {e.code}: {e.reason}"}
     except urllib.error.URLError as e:
         return {"error": str(e.reason)}
-
-
-def start_processing(server: str) -> dict:
-    """Trigger processing of all pending jobs."""
-    url = f"http://{server}/api/process"
-    req = urllib.request.Request(url, method="POST")
-
-    with urllib.request.urlopen(req, timeout=10) as response:
-        return json.loads(response.read().decode())
+    except TimeoutError:
+        return {"error": "upload timed out (file too large?)"}
 
 
 def get_job_status(server: str, job_id: str) -> dict:
     """Get status of a specific job."""
     url = f"http://{server}/api/jobs/{job_id}"
 
-    with urllib.request.urlopen(url, timeout=10) as response:
-        return json.loads(response.read().decode())
+    try:
+        with urllib.request.urlopen(url, timeout=30) as response:
+            return json.loads(response.read().decode())
+    except Exception:
+        return {"job": {"status": "pending"}}
 
 
 def download_file(server: str, job_id: str, output_path: Path) -> bool:
@@ -83,11 +79,23 @@ def download_file(server: str, job_id: str, output_path: Path) -> bool:
     url = f"http://{server}/api/download/{job_id}"
 
     try:
-        with urllib.request.urlopen(url, timeout=60) as response:
+        with urllib.request.urlopen(url, timeout=120) as response:
             output_path.write_bytes(response.read())
             return True
     except Exception:
         return False
+
+
+def start_processing(server: str) -> dict:
+    """Trigger processing of all pending jobs."""
+    url = f"http://{server}/api/process"
+
+    try:
+        req = urllib.request.Request(url, method="POST")
+        with urllib.request.urlopen(req, timeout=30) as response:
+            return json.loads(response.read().decode())
+    except Exception:
+        return {"error": "failed to start processing"}
 
 
 def wait_for_completion(server: str, job_ids: list[str], timeout: int = 300) -> dict[str, dict]:
