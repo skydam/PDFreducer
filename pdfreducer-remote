@@ -1,0 +1,192 @@
+#!/usr/bin/env python3
+"""Remote CLI client for PDFreducer NAS service."""
+
+import argparse
+import shutil
+import sys
+import time
+from pathlib import Path
+
+try:
+    import requests
+except ImportError:
+    print("Error: requests library required. Install with: pip install requests")
+    sys.exit(1)
+
+
+DEFAULT_SERVER = "192.168.178.58:5052"
+
+
+def upload_file(server: str, pdf_path: Path, mode: str = "extract") -> dict:
+    """Upload a PDF file to the server."""
+    url = f"http://{server}/api/upload"
+
+    with open(pdf_path, "rb") as f:
+        files = {"file": (pdf_path.name, f, "application/pdf")}
+        data = {"mode": mode}
+        response = requests.post(url, files=files, data=data, timeout=60)
+
+    return response.json()
+
+
+def start_processing(server: str) -> dict:
+    """Trigger processing of all pending jobs."""
+    url = f"http://{server}/api/process"
+    response = requests.post(url, timeout=10)
+    return response.json()
+
+
+def get_job_status(server: str, job_id: str) -> dict:
+    """Get status of a specific job."""
+    url = f"http://{server}/api/jobs/{job_id}"
+    response = requests.get(url, timeout=10)
+    return response.json()
+
+
+def download_file(server: str, job_id: str, output_path: Path) -> bool:
+    """Download the processed file."""
+    url = f"http://{server}/api/download/{job_id}"
+    response = requests.get(url, timeout=60, stream=True)
+
+    if response.status_code == 200:
+        with open(output_path, "wb") as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        return True
+    return False
+
+
+def wait_for_completion(server: str, job_ids: list[str], timeout: int = 300) -> dict[str, dict]:
+    """Wait for all jobs to complete."""
+    results = {}
+    start_time = time.time()
+    pending = set(job_ids)
+
+    while pending and (time.time() - start_time) < timeout:
+        for job_id in list(pending):
+            status = get_job_status(server, job_id)
+            job = status.get("job", {})
+
+            if job.get("status") == "completed":
+                results[job_id] = job
+                pending.remove(job_id)
+                print(f"  ✓ {job.get('filename', job_id)}")
+            elif job.get("status") == "failed":
+                results[job_id] = job
+                pending.remove(job_id)
+                print(f"  ✗ {job.get('filename', job_id)}: {job.get('error', 'Failed')}")
+
+        if pending:
+            time.sleep(1)
+
+    return results
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Extract text from PDFs using remote PDFreducer server",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  pdfreducer-remote *.pdf
+  pdfreducer-remote report.pdf --move-originals
+  pdfreducer-remote *.pdf --server 192.168.1.100:5052
+        """,
+    )
+
+    parser.add_argument(
+        "files",
+        nargs="+",
+        type=Path,
+        help="PDF files to process",
+    )
+    parser.add_argument(
+        "--server",
+        default=DEFAULT_SERVER,
+        help=f"Server address (default: {DEFAULT_SERVER})",
+    )
+    parser.add_argument(
+        "--move-originals",
+        action="store_true",
+        help="Move original PDFs to _originals/ subdirectory after extraction",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=300,
+        help="Timeout in seconds (default: 300)",
+    )
+
+    args = parser.parse_args()
+
+    # Filter to only existing PDF files
+    pdf_files = [f for f in args.files if f.exists() and f.suffix.lower() == ".pdf"]
+
+    if not pdf_files:
+        print("No PDF files found")
+        return 1
+
+    print(f"Uploading {len(pdf_files)} file(s) to {args.server}...")
+
+    # Upload all files
+    job_ids = []
+    file_map = {}  # job_id -> original path
+
+    for pdf_path in pdf_files:
+        try:
+            result = upload_file(args.server, pdf_path)
+            if "error" in result:
+                print(f"  ✗ {pdf_path.name}: {result['error']}")
+            else:
+                job_id = result["job_id"]
+                job_ids.append(job_id)
+                file_map[job_id] = pdf_path
+                print(f"  ↑ {pdf_path.name}")
+        except Exception as e:
+            print(f"  ✗ {pdf_path.name}: {e}")
+
+    if not job_ids:
+        print("No files uploaded successfully")
+        return 1
+
+    # Start processing
+    print("\nProcessing...")
+    start_processing(args.server)
+
+    # Wait for completion
+    results = wait_for_completion(args.server, job_ids, args.timeout)
+
+    # Download completed files
+    print("\nDownloading...")
+    downloaded = []
+
+    for job_id, job in results.items():
+        if job.get("status") == "completed":
+            original_path = file_map[job_id]
+            output_path = original_path.parent / f"{original_path.stem}.txt"
+
+            if download_file(args.server, job_id, output_path):
+                print(f"  ↓ {output_path.name}")
+                downloaded.append((job_id, original_path, output_path))
+            else:
+                print(f"  ✗ Failed to download {original_path.stem}.txt")
+
+    # Move originals if requested
+    if args.move_originals and downloaded:
+        originals_dir = pdf_files[0].parent / "_originals"
+        originals_dir.mkdir(exist_ok=True)
+
+        print(f"\nMoving originals to {originals_dir}/")
+        for job_id, original_path, output_path in downloaded:
+            dest = originals_dir / original_path.name
+            shutil.move(str(original_path), str(dest))
+            print(f"  → {original_path.name}")
+
+    # Summary
+    print(f"\nDone: {len(downloaded)}/{len(pdf_files)} files extracted")
+
+    return 0 if downloaded else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
