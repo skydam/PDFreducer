@@ -136,3 +136,16 @@ The service runs on Synology NAS at `192.168.178.58:5052`.
 ## User Preferences
 
 - **Deployment zips**: Always save `pdfreducer-nas-deploy.zip` to `~/Desktop/`, not in the project directory
+
+## Next Steps / Known Issues
+
+- **Table extraction quality**: The current pdfplumber table extraction produces poorly formatted markdown tables with empty columns, missing headers, and fragmented data. Annual report tables come out garbled (see example below). Needs investigation to improve table detection and formatting.
+
+Example of bad output:
+```
+|     | 2016       |     |            |            |     |
+|-----|------------|-----|------------|------------|-----|
+|     | 400,318    |     | 321,343    | 262,523    |     |
+|     | 191        |     | 150        | 133        |     |
+```
+Should have proper headers and no empty columns.
